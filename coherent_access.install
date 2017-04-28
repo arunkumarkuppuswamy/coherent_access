@@ -1,0 +1,55 @@
+<?php
+
+/*
+ * @file
+ * Provides installation directives for coherent access module
+*/
+
+function coherent_access_schema() {
+  $schema['coherent_access_gid'] = array(
+    'description' => 'Stores details of node access modes.',
+    'fields' => array(
+      'gid' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'nid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'mode' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'indexes' => array(
+      'nid' => array('nid'),
+    ),
+    'primary key' => array('gid'),
+  );
+  
+  $schema['coherent_access_user'] = array(
+    'description' => 'Stores the users who can edit and view nodes.',
+    'fields' => array(
+      'uid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'gid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('uid', 'gid'),
+  );
+  return $schema;
+}

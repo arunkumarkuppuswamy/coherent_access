@@ -1,0 +1,4 @@
+name = Coherent Access
+description = Provides user level node access for viewing and editing.
+package = Access control
+core = 7.x
