@@ -1,10 +1,13 @@
 <?php
 
-/*
+/**
  * @file
- * Provides installation directives for coherent access module
-*/
+ * Provides installation directives for coherent access module.
+ */
 
+/**
+ * Implements hook_schema().
+ */
 function coherent_access_schema() {
   $schema['coherent_access_gid'] = array(
     'description' => 'Stores details of node access modes.',
@@ -32,7 +35,7 @@ function coherent_access_schema() {
     ),
     'primary key' => array('gid'),
   );
-  
+
   $schema['coherent_access_user'] = array(
     'description' => 'Stores the users who can edit and view nodes.',
     'fields' => array(

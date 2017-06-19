@@ -24,7 +24,7 @@ function _coherent_access_is_coherently_accessible($node) {
 }
 
 /**
- *
+ * Implements hook_form_alter().
  */
 function coherent_access_form_alter(&$form, &$form_state, $form_id) {
   if (isset($form['#node']) && $form_id == $form['#node']->type . '_node_form') {
@@ -35,13 +35,18 @@ function coherent_access_form_alter(&$form, &$form_state, $form_id) {
 }
 
 /**
- *
+ * Implements hook_block_info().
  */
-function coherent_access_block($op = 'list', $delta = 0, $edit = array()) {
+function coherent_access_block_info() {
+  $blocks = array();
+  $blocks['coherent_access_list'] = array(
+    'info' => t('Shared Posts'),
+    'description' => BLOCK_DESCRIPTION,
+  );
   switch ($op) {
     case 'list':
       $blocks[0] = array(
-        'info' => t('Shared Posts'),
+        'info' => 'list',
         'weight' => 0,
         'enabled' => 1,
         'region' => 'left',
@@ -135,7 +140,7 @@ function coherent_access_show_my_nodes($num = 0, $uid = NULL) {
  *
  */
 function coherent_access_admin_settings() {
-  $types = node_get_types('names');
+  $types = node_type_get_names();
 
   $form['coherent_access_types'] = array(
     '#type' => 'select',
@@ -180,17 +185,6 @@ function coherent_access_admin_settings() {
   return system_settings_form($form);
 }
 
-/**
- * Function coherent_access_admin_settings_submit($form, &$form_state) {
- * $types = $form_state['values']['coherent_access_types'];
- * variable_set('coherent_access_types', serialize($types));
- * variable_set('coherent_access_default_node_private', $form_state['values']['coherent_access_default_node_private']);
- * variable_set('coherent_access_send_email', $form_state['values']['coherent_access_send_email']);
- * variable_set('coherent_access_subject', $form_state['values']['coherent_access_subject']);
- * variable_set('coherent_access_body', $form_state['values']['coherent_access_body']);
- * variable_set('coherent_access_trust_editors', $edit['coherent_access_trust_editors']);
- * }.
- */
 function coherent_access_menu() {
   $items = array();
   global $user;
@@ -223,32 +217,34 @@ function coherent_access_shared_editing($form_id, &$form) {
   $node = $form['#node'];
 
   $editors = array();
-  if ($user->uid == $node->author || variable_get('coherent_access_trust_editors', TRUE) || user_access('administer nodes')) {
-    if ($node->nid) {
+  $viewers = array();
+
+  if ($user->uid == $node->uid || variable_get('coherent_access_trust_editors', TRUE) || user_access('administer nodes')) {
+    if (isset($node->nid) && ($node->nid)) {
       // Get editors excluding delete privilege (as that is author only)
       $result = db_query("SELECT u.uid, u.name FROM {users} u 
                           LEFT JOIN {coherent_access_user} cu on cu.uid = u.uid
                           LEFT JOIN {coherent_access_gid} cg ON cu.gid = cg.gid
-                          WHERE  cg.nid = %d 
-                            AND cg.mode & %d AND (cg.mode & %d = %d)",
-                          $node->nid, COHERENT_ACCESS_EDIT, COHERENT_ACCESS_DELETE, 0);
-      while ($editor = db_fetch_object($result)) {
+                          WHERE  cg.nid = :nid 
+                            AND cg.mode & :mode AND (cg.mode & :access_delete = :access_delete_value)",
+                          array(":nid" => $node->nid, ":mode" => COHERENT_ACCESS_EDIT, ":access_delete" => COHERENT_ACCESS_DELETE, ":access_delete_value" => 0))->fetchAll();
+      foreach ($result as $editor) {
         $editors[$editor->uid] = $editor->name;
       }
-    }
-
-    $viewers = array();
-    if ($node->nid) {
+      
       $result = db_query("SELECT u.uid, u.name FROM {users} u 
                           LEFT JOIN {coherent_access_user} cu on cu.uid = u.uid
                           LEFT JOIN {coherent_access_gid} cg ON cu.gid = cg.gid
-                          WHERE  cg.nid = %d 
-                            AND cg.mode = %d",
-                          $node->nid, COHERENT_ACCESS_VIEW);
-      while ($viewer = db_fetch_object($result)) {
+                          WHERE  cg.nid = :nid 
+                            AND cg.mode = :mode",
+                          array(":nid" => $node->nid, ":mode" => COHERENT_ACCESS_VIEW))->fetchAll();
+      foreach ($result as $viewer) {
         $viewers[$viewer->uid] = $viewer->name;
       }
     }
+kprint_r($editors);
+    
+
 
     $form['shared_editing'] = array(
       '#type' => 'fieldset',
@@ -283,13 +279,12 @@ function coherent_access_shared_editing($form_id, &$form) {
     );
 
     $form['shared_editing']['edit']['remove_editors'] = array(
-      '#type' => 'checkboxes',
-    // Placeholder.
+      '#type' => 'checkbox',
     );
 
     $form['shared_editing']['edit']['remove_editors_button'] = array(
       '#type' => 'coherent_access_button',
-      '#label' => t('Remove Editors'),
+      '#value' => t('Remove Editors'),
     );
 
     $form['shared_editing']['edit']['add_editor'] = array(
@@ -301,7 +296,7 @@ function coherent_access_shared_editing($form_id, &$form) {
     );
     $form['shared_editing']['edit']['add_editor_button'] = array(
       '#type' => 'coherent_access_button',
-      '#label' => t('Add Editor'),
+      '#value' => t('Add Editor'),
     );
 
     $form['shared_editing']['edit']['editor_list'] = array(
@@ -317,11 +312,11 @@ function coherent_access_shared_editing($form_id, &$form) {
       '#description' => t('If this node is marked as "private" viewers listed below may still view this content.'),
     );
     $form['shared_editing']['view']['remove_viewers'] = array(
-      '#type' => 'checkboxes',
+      '#type' => 'checkbox',
     );
     $form['shared_editing']['view']['remove_viewers_button'] = array(
       '#type' => 'coherent_access_button',
-      '#label' => t('Remove Viewers'),
+      '#value' => t('Remove Viewers'),
     );
     $form['shared_editing']['view']['add_viewer'] = array(
       '#type' => 'textfield',
@@ -332,7 +327,7 @@ function coherent_access_shared_editing($form_id, &$form) {
     );
     $form['shared_editing']['view']['add_viewer_button'] = array(
       '#type' => 'coherent_access_button',
-      '#label' => t('Add Viewer'),
+      '#value' => t('Add Viewer'),
     );
 
     $form['shared_editing']['view']['viewer_list'] = array(
@@ -357,12 +352,12 @@ function coherent_access_form_after_build($form, &$form_state) {
   if ($form['shared_editing']['edit']['add_editor_button']['#value']) {
     // Need to add an editor to our editors list.
     $name = $form['shared_editing']['edit']['add_editor']['#value'];
-    $u = db_fetch_object(db_query("SELECT uid, name FROM {users} WHERE name = '%s'", $name));
-    if (!$u->uid) {
+    $u = db_query("SELECT uid, name FROM {users} WHERE name=:name", array(":name" => $name))->fetchAssoc();
+    if (!$u['uid']) {
       form_error($form['shared_editing']['edit']['add_editor'], t('Invalid user.'));
     }
     else {
-      $editors[$u->uid] = $u->name;
+      $editors[$u['uid']] = $u['name'];
       // Unset form field.
       $form['shared_editing']['edit']['add_editor']['#value'] = NULL;
       $added = 'editor';
@@ -371,12 +366,12 @@ function coherent_access_form_after_build($form, &$form_state) {
   elseif ($form['shared_editing']['view']['add_viewer_button']['#value']) {
     // Need to add a viewer to our viewers list.
     $name = $form['shared_editing']['view']['add_viewer']['#value'];
-    $u = db_fetch_object(db_query("SELECT uid, name FROM {users} WHERE name = '%s'", $name));
-    if (!$u->uid) {
+    $u = db_query("SELECT uid, name FROM {users} WHERE name =:name", array(":name" => $name))->fetchAssoc();
+    if (!$u['uid']) {
       form_error($form['shared_editing']['edit']['add_editor'], t('Invalid user.'));
     }
     else {
-      $viewers[$u->uid] = $u->name;
+      $viewers[$u['uid']] = $u['name'];
       // Unset form field.
       $form['shared_editing']['view']['add_viewer']['#value'] = NULL;
       $added = 'viewer';
@@ -638,14 +633,14 @@ function coherent_access_node_grants($account, $op) {
   $grants['coherent_access'] = array();
 
   // Add explicit grants first.
-  $result = db_query('SELECT gid FROM {coherent_access_user} WHERE uid = %d', $account->uid);
-  while ($gid = db_fetch_array($result)) {
+  $result = db_query('SELECT gid FROM {coherent_access_user} WHERE uid = :uid', array(":uid" => $account->uid))->fetchAll();
+  foreach ($result as $gid) {
     $grants['coherent_access'][] = $gid['gid'];
   }
 
   // Now add blanket grants.
-  $result = db_query('SELECT gid FROM {coherent_access_gid} WHERE mode = %d', 0);
-  while ($gid = db_fetch_array($result)) {
+  $result = db_query('SELECT gid FROM {coherent_access_gid} WHERE mode = :mode', array(":mode" => 0))->fetchAll();
+  foreach ($result as $gid) {
     $grants['coherent_access'][] = $gid['gid'];
   }
 
@@ -653,39 +648,25 @@ function coherent_access_node_grants($account, $op) {
 }
 
 /**
- *
+ * Implements hook_element_info().
  */
-function coherent_access_elements() {
-  $type['coherent_access_button'] = array('#input' => TRUE, '#button_type' => 'submit', '#executes_submit_callback' => FALSE);
-  return $type;
-}
-
-/**
- *
- */
-function theme_coherent_access_button($element) {
-  $element['#value'] = $element['#label'];
-  return theme('button', $element);
-}
-
-/**
- *
- */
-function coherent_access_theme() {
+function coherent_access_element_info() {  
   return array(
     'coherent_access_button' => array(
-      'arguments' => array('element' => NULL),
-    ),
-  );
+      '#input' => TRUE,
+      '#button_type' => 'submit',
+      '#executes_submit_callback' => FALSE,
+      '#theme_wrappers' => array('button'),
+  ));
 }
 
 /**
  *
  */
 function coherent_access_get_gids($nid, $create = TRUE) {
-  $result = db_query('SELECT * FROM {coherent_access_gid} WHERE nid = %d', $nid);
+  $result = db_query('SELECT * FROM {coherent_access_gid} WHERE nid = :nid', array(":nid" => $nid))->fetchAll();
   $gids = array();
-  while ($row = db_fetch_array($result)) {
+  foreach ($result as $row) {
     $gids[$row['mode']] = $row['gid'];
   }
 
@@ -727,8 +708,14 @@ function coherent_access_create_gids($nid) {
   $modes[] = COHERENT_ACCESS_VIEW | COHERENT_ACCESS_EDIT | COHERENT_ACCESS_DELETE;
 
   foreach ($modes as $mode) {
-    db_query('INSERT INTO {coherent_access_gid} (gid, nid, mode) values(%d, %d, %d)', 0, $nid, $mode);
-    $gids[$mode] = db_last_insert_id('coherent_access_gid', 'gid');
+    $id = db_insert('coherent_access_gid')
+        ->fields(array(
+        'gid' => 0,
+        'nid' => $nid,
+        'mode' => $mode,
+      ))
+      ->execute();
+    $gids[$mode] = $id;
   }
 
   return $gids;
